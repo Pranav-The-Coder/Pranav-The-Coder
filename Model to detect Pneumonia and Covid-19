@@ -1,0 +1,121 @@
+#Credit - Berkat Bhatti - https://www.kaggle.com/code/theknightmarketllc/covid-19-and-pneumonia-deep-learning-cnn
+# I added more datasets and enhanced the code
+# I was able to get an accuracy of 95% from the original accuracy of 92%
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.image import imread
+import zipfile
+import os
+data_dir = "C:\\Users\\meena\\Downloads\\Covid19-Pneumonia\\"
+os.listdir(data_dir)	
+train_dir = data_dir+"/train"
+os.listdir(train_dir)
+test_dir = data_dir+"/test"
+os.listdir(test_dir)
+len(os.listdir(train_dir+"/COVID19"))
+len(os.listdir(train_dir+"/NORMAL"))
+len(os.listdir(train_dir+"/PNEUMONIA"))
+len(os.listdir(test_dir+"/COVID19"))
+len(os.listdir(test_dir+"/NORMAL"))	
+len(os.listdir(test_dir+"/PNEUMONIA"))
+os.listdir(train_dir+"/COVID19")[0]
+pneumonia_sample = imread(train_dir+"/PNEUMONIA"+"/PNEUMONIA(3189).jpg")
+plt.imshow(pneumonia_sample)
+normal_sample = imread(train_dir+"/NORMAL"+"/NORMAL(342).jpg")
+plt.imshow(normal_sample)
+covid_sample = imread(train_dir+"/COVID19"+"/COVID19(189).jpg")
+plt.imshow(covid_sample, cmap= "gray")
+covid_sample.shape
+pneumonia_sample.shape
+normal_sample.shape
+#dim1 = []
+#dim2 = []
+
+#for image_name in os.listdir(train_dir+"/PNEUMONIA"):
+    #img = imread(train_dir+"/PNEUMONIA/"+image_name)
+   # d1,d2,c = img.shape
+    #dim1.append(d1)
+    #dim2.append(d2)
+#plt.figure(figsize=(16,6))
+
+#sns.scatterplot(dim1, dim2)
+#.mean(dim1)
+#np.mean(dim2)
+average_image_size = (400,400,3)
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+generator = ImageDataGenerator(
+    rotation_range=0,
+    width_shift_range=0.1,
+    height_shift_range=0.1,
+    shear_range=0.1,
+    zoom_range=0.2,
+    fill_mode='nearest',
+    horizontal_flip=False,
+    vertical_flip=False,
+    rescale=1/255,
+)
+plt.imshow(generator.random_transform(pneumonia_sample))
+generator.flow_from_directory(test_dir)
+generator.flow_from_directory(train_dir)
+train_generator = generator.flow_from_directory (
+    train_dir,
+    target_size=average_image_size[:2],
+    color_mode='rgb',
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=True,
+)
+test_generator = generator.flow_from_directory (
+    test_dir,
+    target_size=average_image_size[:2],
+    color_mode='rgb',
+    class_mode='categorical',
+    batch_size=64,
+    shuffle=False,
+)
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPool2D, Flatten, Dense, Dropout
+from tensorflow.keras.callbacks import EarlyStopping
+stop = EarlyStopping(monitor="val_loss", mode="min", patience=6)
+model = Sequential()
+model.add(Conv2D(filters = 256, padding = "same", kernel_size = (2,2), strides = (2,2), activation = "relu", input_shape = average_image_size))
+model.add(MaxPool2D(pool_size = (2,2)))
+model.add(Conv2D(filters = 256, padding = "same", kernel_size = (2,2), strides = (2,2), activation = "relu", input_shape = average_image_size))
+model.add(MaxPool2D(pool_size = (2,2)))
+model.add(Conv2D(filters = 256, padding = "same", kernel_size = (2,2), strides = (2,2), activation = "relu", input_shape = average_image_size))
+model.add(Flatten())
+model.add(Dense(units = 132, activation = "relu"))
+model.add(Dense(units = 60, activation = "relu"))
+model.add(Dense(units = 3, activation = "softmax"))
+model.compile(loss = "categorical_crossentropy", optimizer = "adam", metrics = ["accuracy"])
+model.fit_generator(train_generator, validation_data=test_generator, epochs=30, callbacks=[stop])
+model.metrics_names
+pd.DataFrame(model.history.history)[["loss", "val_loss"]].plot(figsize =(16,6), marker = "o", mfc = "g")
+pd.DataFrame(model.history.history)[["accuracy", "val_accuracy"]].plot(figsize =(16,6), marker = "o", mfc = "g")
+predictions = model.predict(test_generator)
+predictions
+pred_labels = np.argmax(predictions, axis = 1)
+len(test_generator.classes)
+len(pred_labels)
+from sklearn.metrics import confusion_matrix, classification_report
+print(classification_report(test_generator.classes, pred_labels))
+
+model.save('covid_pneumonia_latest_model_30epochs-graph.h5')
+
+from tensorflow.keras.preprocessing import image
+from random import randint
+random_index = randint(1, len(os.listdir(train_dir+"/COVID19")))
+random_covid_image_name = os.listdir(train_dir+"/COVID19")[random_index]
+random_covid_image_name
+covid_img_path = train_dir+"/COVID19/"+random_covid_image_name
+random_covid_img = image.load_img(covid_img_path, target_size=average_image_size)
+random_covid_img
+
+random_covid_img_array = image.img_to_array(random_covid_img)
+random_covid_img_array.shape
+covid_img_array = np.expand_dims(random_covid_img_array, axis=0)
+covid_img_array.shape
+np.argmax(model.predict(covid_img_array), axis =1)
+test_generator.class_indices
